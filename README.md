@@ -4,7 +4,7 @@ This project builds generalized linear models to understand predictors of contra
 
 ## Technologies
 
-Completed in Python, the following packages are used
+Completed in R, the following packages are used
  - dyplr
  - caTools
  
