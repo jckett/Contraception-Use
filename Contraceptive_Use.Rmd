@@ -1,0 +1,195 @@
+---
+title: "Assignment 10.1 "
+author: "Joi Chu-Ketterer"
+date: "August 6th 2019"
+output:
+  word_document: default
+---
+
+```{r, include = FALSE}
+library(dplyr) #this allows me to use glimpse
+library(caTools) #this allows me to create train/test sets and test the accuracy of the model
+```
+
+Packages used: dplyr, caTools
+
+Introduction 
+Contraception is taboo subject for many, and so I wanted to explore some of the impacts that may influence the use of using it or not. The data I explore is provided by HealthData.gov and is collected over three different datasets. Combining the datasets together, I can compare the impact of age, race/ethnicity, language, and year has on the rate of contraceptive use. If a good model can be created, it can be used help promote contraceptive use.
+
+Importing and Cleaning the Data
+
+My first step in data preparation will be to import my data, and looking at the data itself in R. 
+```{r}
+basic <- read.csv("cc_basic.csv", stringsAsFact = FALSE)
+lang <- read.csv("cc_language.csv", stringsAsFact = FALSE)
+race <- read.csv("cc_race.csv", stringsAsFact = FALSE)
+```
+
+Dealing with three different datasets is messy, so I will need to combine them together, while still preserving all the data. I can achieve this using the merge() function. 
+
+```{r}
+cc_combine1 <- merge(basic, lang, by=c('Age.Group', "Year"))
+cc_new <- merge(cc_combine1, race, by=c('Age.Group', "Year"))
+```
+
+Now that my data is in one dataset, before moving on, I need to factor the Age.Group, Language, Contraceptive.Type, and Race.Ethnicity columns for easier analysis later. Just to check that they aren't factors already, I can run the following code:
+
+```{r}
+is.factor(cc_new$Age.Group)
+is.factor(cc_new$Language)
+is.factor(cc_new$Race.Ethnicity)
+is.factor(cc_new$Contraceptive.Type)
+```
+
+Once confirmed, I will make them into factors.
+
+```{r}
+cc_new$Age.Group <- factor(cc_new$Age.Group)
+cc_new$Language <- factor(cc_new$Language)
+cc_new$Race.Ethnicity <- factor(cc_new$Race.Ethnicity)
+cc_new$Contraceptive.Type <- factor(cc_new$Contraceptive.Type)
+
+is.factor(cc_new$Age.Group) 
+is.factor(cc_new$Language) 
+is.factor(cc_new$Race.Ethnicity) 
+is.factor(cc_new$Contraceptive.Type)
+```
+
+With the Age.Group, Language, Contraceptive.Type, and Race.Ethnicity columns as factors now, R will be able to process the data more smoothly, and as intended. My ultimate goal is to understand what factors seem to be affecting the use of contraception (Rate.of.Contraceptive.Use). I will be focusing on Age.Group, Language, and Race.Ethnicity as my potential variables, and so I can eliminate the remaining columns from my dataset. I didn't do this before in case I need to access them later, that way I still have the cc_new dataset available to me. 
+
+```{r}
+ColsToDelete <- c("Contraceptive.Type.x", "Contraceptive.Use.x" ,"Eligible.y",  "Contraceptive.Type", "Contraceptive.Use", "Eligible.x", "Rate.of.Contraceptive.Use.y",  "Rate.of.Contraceptive.Use.x", "Contraceptive.Type.y" , "Contraceptive.Use.y",  "Eligible" )
+
+names(cc_new) %in% ColsToDelete
+!names(cc_new) %in% ColsToDelete
+
+cc_short <- cc_new[ , !(names(cc_new) %in% ColsToDelete)]
+```
+
+So now, moving forward with my analysis, I will be using the cc_short dataset. To preview the data, we can use glimpse() to see the total number of observations we have, the number of variables and their data types, and the first few observations for each one. 
+
+```{r}
+glimpse(cc_short)
+```
+
+In the glimpse view, we actually see the rate of contraceptive use is a character, but moving forward with analysis, I would like to change the character string "46.59" into a number. Before doing this, I will need to remove the '%' character from each value. 
+
+```{r}
+cc_short$Rate.of.Contraceptive.Use <- gsub( "%", "", as.character(cc_short$Rate.of.Contraceptive.Use))
+```
+
+Now that I have removed the '%', I can convert the character data type into a numeric data type. 
+```{r}
+cc_short$Rate.of.Contraceptive.Use <- as.numeric(cc_short$Rate.of.Contraceptive.Use)
+```
+
+Just to confirm that I was successful, I will run the glimspe code one more time. 
+
+```{r}
+glimpse(cc_short)
+```
+
+Now, we see that the Rate.of.Contraceptive.Use column is a dbl type, which is a double vector, which is numeric so we succeeded. Now that we have the correct data types, we can use the head() function to see the first few rows of our new data set (cc_short).
+
+```{r}
+head(cc_short)
+```
+
+Data Exploration 
+
+With all the data available to me now and cleaned up, I can move forward with the analysis. Given the nature of how the data was collected, I will plot the rate of contraceptive use as a function of the other variables. 
+
+```{r}
+plot(Rate.of.Contraceptive.Use ~ Age.Group, data = cc_short, xlab = "Age Group", ylab = "Rate", main = "Rate of Contraceptive Use by Age Group")
+```
+
+```{r}
+plot(Rate.of.Contraceptive.Use ~ Year, data = cc_short, xlab = "Year", ylab = "Rate", main = "Rate of Contraceptive Use by Year")
+```
+```{r}
+plot(Rate.of.Contraceptive.Use ~ Language, data = cc_short, xlab = "Language", ylab = "Rate", main = "Rate of Contraceptive Use by Language")
+```
+
+```{r}
+plot(Rate.of.Contraceptive.Use ~ Race.Ethnicity, data = cc_short, xlab = "Race/Ethnicity", ylab = "Rate", main = "Rate of Contraceptive Use by Race and Ethnicity")
+```
+
+Looking at the various plots I have, we see that contraceptive use does not vary much by year or language. In fact, it seems there's no relationship between langauge and contraceptive use. There is, however, variability given age and race/ethnicity. It would be interesting to explore these predictors in further detail to understand the weights in which each one affects the rate of contraceptive use. 
+
+```{r}
+#correlation and partial correlation = 4.1
+
+cor_age <- cor(rank(cc_short$Age.Group), cc_short$Rate.of.Contraceptive.Use)
+cor_race <- cor(rank(cc_short$Race.Ethnicity), cc_short$Rate.of.Contraceptive.Use)
+cor_lang <- cor(rank(cc_short$Language), cc_short$Rate.of.Contraceptive.Use)
+cor_year <- cor(cc_short$Year, cc_short$Rate.of.Contraceptive.Use)
+
+"Correlation (R and R^2) between contraceptive use and age"
+cor_age
+cor_age^2 * 100
+
+"Correlation (R and R^2) between contraceptive use and race/enthnicity"
+cor_race
+cor_race^2 * 100
+
+"Correlation (R and R^2) between contraceptive use and language"
+cor_lang
+cor_lang^2 * 100
+
+"Correlation (R and R^2) between contraceptive use and year"
+cor_year
+cor_year^2 * 100
+```
+
+Since age, race, and language are all categorical values, I have to use Spearman's correlation for those predictors, which is why I use the rank() function within my correlation function. Year, on the other hand is a numeric predictor, so I can use Pearon's correlation, which is the default so I don't need to add any information to my function. 
+
+Looking at the different correlations, we can see that these are all pretty bad predictors of contraceptive use. In fact, my initial guess that race/enthnicity was one of the bigger influences of contraceptive use was incorrect. Here, we see that age accounts for 0.10% percent of one's rate of using contraceptive, and year accounts for 3.15%. My prediction for language's impact was correct as we see there was 0 correlation and 0% of the chances of someone using contraceptives being affected by the language they spoke. 
+
+At this point, if I were working for a company trying to help develop a marketing strategy, I would most likely look for new data to analyze that had more informative predictors. However, for the scope of this project, I will continue analyzing the data I have and see what other information we can obtain from the current dataset. Initially, I wanted to create KNN models for my data to understand how well the predictors are. However, one of the main weakenesses the KNN algorithm is that it doesn't handle categorical variables, which is predominantly all that my dataset is. 
+
+For this reason, I will go ahead and create models using the glm() function. Since age and year seem to have the biggest impact on contraceptive use, I will continue my analysis with these predictors only. 
+
+```{r}
+cUse <- glm(Rate.of.Contraceptive.Use ~ Age.Group + Year, data = cc_short)
+summary(cUse)
+```
+
+Here, we are focusing on the standardized coefficient, where for Age.Group has a value of 1.2494 and Year has a value of 0.7291. Since Age.Group has a larger value, we know that it has the largest impact, despite having a slightly smaller correlation coefficient. 
+
+Another point of interest is looking at the null deviance compared to the residual deviance, which have a value of 213141 and 205853, respectively. Since our residual deviance is smaller than our null, this means that by including the two predictors Age.Group and Year we do actually create a better model than if we didn't include them. That's reassuring. ust out of curiosity, I want compare my joint model to individual ones. 
+
+```{r}
+cUse_age <- glm(Rate.of.Contraceptive.Use ~ Age.Group, data = cc_short)
+summary(cUse_age)
+```
+
+```{r}
+cUse_year <- glm(Rate.of.Contraceptive.Use ~ Year, data = cc_short)
+summary(cUse_year)
+```
+
+What's interesting here, is that despite in the combined model indicating that Age.Group has a greater impact on the rate of contraceptive use, the Year predictor is better to use for a model. We can extract this by once again looking at the difference between the null and residual deviance, where the model with only the Year predictor has a much bigger difference. Still, the combined model has the largest decrease, so I will only focus on this one. Having created the model, I will now test the accuracy of it. 
+
+```{r}
+split <- sample.split(cc_short, SplitRatio = 0.8)
+train <- subset(cc_short, split == "TRUE")
+test <- subset(cc_short, split == "FALSE")
+
+test_model <- predict(cUse, test, type = "response")
+test_model <- predict(cUse, train, type = "response")
+
+confmatrix <- table(Actual_value = train$Rate.of.Contraceptive.Use, Predicted_value = test_model > 0.5)
+
+accuracy = (confmatrix[[1,1]])/sum(confmatrix)
+accuracy 
+```
+
+Knowing that the predictors chosen aren't the best, it's not surprising the model is only performing at a 1.4% accuracy. This tells us that despite Age.Group and Year being the best predictors of the ones available in this data set, they are bad predictors overall. 
+
+Summary 
+
+Since a lot of the taboo around contraceptive use is surrounded around culture, I thought race/enthnicity would have a bigger role in impacting the use rate. That said, race/ethnicity is not a great predictor in itself of culture. So a better predictor may be geographical location. This would at least give us insight into whether some regions around the world are more likely to use contraceptives or if culture/geography really doesn't have as big of an impact as we think. 
+
+Not having more predictors to analyze is certainly one of the biggest drawbacks of the dataset. Additionally, a majority of the variables were categorical. Although there are methods we can use to analyze them, it does limit the type of models and deep analysis we can achieve. Especially since the age variable was categorical (divided into age groups), we are missing a lot of information that could otherwise be revealed if the data included exact ages. 
+
+If I were tasked at work to create a predictive model that helped described the imapcts of contraceptive use, I would certainly need to find additional data sets with more descriptive data. 
